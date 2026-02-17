@@ -1,0 +1,28 @@
+{
+  "forumChannelId": "YOUR_FORUM_CHANNEL_ID",
+  "xpPerPin": 2,
+  "xpPerPost": 1,
+  "levelThresholds": {
+    "1": 5,
+    "2": 15,
+    "3": 35,
+    "4": 80,
+    "5": 140,
+    "6": 220,
+    "7": 320,
+    "8": 440,
+    "9": 600
+  },
+  "levelRoles": {
+    "0": "ROLE_ID_FOR_LEVEL_0",
+    "1": "ROLE_ID_FOR_LEVEL_1",
+    "2": "ROLE_ID_FOR_LEVEL_2",
+    "3": "ROLE_ID_FOR_LEVEL_3",
+    "4": "ROLE_ID_FOR_LEVEL_4",
+    "5": "ROLE_ID_FOR_LEVEL_5",
+    "6": "ROLE_ID_FOR_LEVEL_6",
+    "7": "ROLE_ID_FOR_LEVEL_7",
+    "8": "ROLE_ID_FOR_LEVEL_8",
+    "9": "ROLE_ID_FOR_LEVEL_9"
+  }
+}

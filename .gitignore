@@ -1,0 +1,6 @@
+node_modules/
+.env
+config.json
+*.db
+*.db-journal
+.DS_Store

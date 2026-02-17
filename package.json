@@ -1,0 +1,24 @@
+{
+  "name": "rolbot",
+  "version": "1.0.0",
+  "description": "Discord bot that assigns XP based on pin reactions in forum posts",
+  "main": "bot.js",
+  "type": "module",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --watch bot.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "xp",
+    "levels"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.25.1",
+    "dotenv": "^16.4.1",
+    "sql.js": "^1.10.3"
+  }
+}
