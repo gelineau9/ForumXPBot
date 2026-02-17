@@ -2,6 +2,8 @@
   "forumChannelId": "YOUR_FORUM_CHANNEL_ID",
   "xpPerPin": 2,
   "xpPerPost": 1,
+  "closeTime": 168,
+  "lockTime": 336,
   "levelThresholds": {
     "1": 5,
     "2": 15,

@@ -29,7 +29,54 @@ client.once(Events.ClientReady, async (c) => {
   
   // Register slash commands
   await registerCommands(c);
+  
+  // Start periodic thread maintenance check
+  if (configData.closeTime || configData.lockTime) {
+    console.log(`⏰ Thread maintenance enabled - Close: ${configData.closeTime || 'disabled'}h, Lock: ${configData.lockTime || 'disabled'}h`);
+    // Run immediately on startup, then every 5 minutes
+    checkThreadMaintenance(c);
+    setInterval(() => checkThreadMaintenance(c), 5 * 60 * 1000);
+  }
 });
+
+// Check and close/lock old threads
+async function checkThreadMaintenance(client) {
+  try {
+    const guild = client.guilds.cache.first();
+    if (!guild) return;
+    
+    const forumChannel = await guild.channels.fetch(configData.forumChannelId);
+    if (!forumChannel) return;
+    
+    // Fetch all active threads in the forum
+    const threads = await forumChannel.threads.fetchActive();
+    const now = Date.now();
+    
+    for (const [threadId, thread] of threads.threads) {
+      const threadAge = now - thread.createdTimestamp;
+      const threadAgeHours = threadAge / (1000 * 60 * 60);
+      
+      // Check if thread should be locked (lockTime takes precedence)
+      if (configData.lockTime && threadAgeHours >= configData.lockTime && !thread.locked) {
+        await thread.setLocked(true);
+        console.log(`🔒 Locked thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
+        
+        // Also archive if not already
+        if (!thread.archived) {
+          await thread.setArchived(true);
+          console.log(`📁 Closed thread "${thread.name}"`);
+        }
+      }
+      // Check if thread should be closed (archived)
+      else if (configData.closeTime && threadAgeHours >= configData.closeTime && !thread.archived) {
+        await thread.setArchived(true);
+        console.log(`📁 Closed thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
+      }
+    }
+  } catch (error) {
+    console.error('Error in thread maintenance:', error);
+  }
+}
 
 // Listen for reactions added to messages
 client.on(Events.MessageReactionAdd, async (reaction, user) => {
