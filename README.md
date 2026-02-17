@@ -1,28 +1,17 @@
-# RoLBot - Discord Forum XP & Leveling Bot
+# ForumXPBot - Discord Forum XP & Leveling Bot
 
 A lightweight Discord bot that tracks XP and assigns level roles based on user activity in forum channels. Users earn XP by creating forum posts and receiving pin reactions on their posts.
 
 ## Features
 
-- **Forum-focused XP system** - Tracks activity only in a designated forum channel
+- **Forum-focused XP system** - Tracks activity only in a designated forum channel (config.json)
 - **Pin reaction rewards** - Users earn XP when others pin (📌) their forum starter posts
 - **XP removal** - XP is removed if a pin reaction is removed
 - **Post creation rewards** - Users earn XP for creating new forum posts
 - **Automatic role management** - Assigns level roles on level-up, removes old level roles
-- **Cumulative XP thresholds** - Configurable XP requirements for each level
 - **Manual role sync** - Assigning a level role manually updates the user's XP and removes lower roles
 - **Admin commands** - Manage user XP and check progress
-- **SQLite database** - Lightweight, file-based storage with no external dependencies
-
-## How It Works
-
-1. Users start at **Level 0** with 0 XP
-2. XP is earned by:
-   - Receiving a pin (📌) reaction on a forum post's starter message
-   - Creating a new forum post in the monitored channel
-3. XP is lost when pin reactions are removed
-4. When XP reaches a threshold, the user levels up and receives the corresponding role
-5. Previous level roles are automatically removed on level-up
+- **SQLite database** - Lightweigh storage with no external dependencies
 
 ## Installation
 
@@ -35,7 +24,7 @@ A lightweight Discord bot that tracks XP and assigns level roles based on user a
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/RoLBot.git
+   git clone https://github.com/gelineau9/RoLBot.git
    cd RoLBot
    ```
 
@@ -123,21 +112,6 @@ Enable these in the Discord Developer Portal (Bot → Privileged Gateway Intents
 
 **Important:** The bot's role must be positioned **above** all level roles in your server's role settings. Discord prevents bots from managing roles higher than their own.
 
-```
-Role Hierarchy (top = highest):
-─────────────────────────────
-  Server Owner
-  Admin roles
-  🤖 YourBot        ← Bot role must be HERE
-  Level 9
-  Level 8
-  ...
-  Level 1
-  Level 0
-  @everyone
-─────────────────────────────
-```
-
 ## Admin Commands
 
 All commands require **Administrator** permission and responses are ephemeral (only visible to the admin).
@@ -151,7 +125,7 @@ All commands require **Administrator** permission and responses are ephemeral (o
 ## File Structure
 
 ```
-RoLBot/
+ForumXPBot/
 ├── bot.js              # Main bot logic and event handlers
 ├── database.js         # SQLite database operations
 ├── config.json         # Bot configuration (not tracked in git)
@@ -162,25 +136,6 @@ RoLBot/
 ├── .gitignore          # Git ignore rules
 └── xp.db               # SQLite database (created on first run)
 ```
-
-## Troubleshooting
-
-### Bot doesn't respond to reactions
-- Verify the forum channel ID in `config.json` is correct
-- Ensure **Message Content Intent** is enabled in Discord Developer Portal
-- Check that you're reacting to the **first message** (starter post) in forum threads, not replies
-
-### "Missing Permissions" error when assigning roles
-- In Discord Server Settings → Roles, drag the bot's role **above** all level roles
-- Verify the bot has **Manage Roles** permission
-
-### Slash commands don't appear
-- Wait a few minutes for Discord to sync commands
-- Try kicking and re-inviting the bot to force a refresh
-
-### XP not being saved
-- Check that the bot has write permissions in its directory
-- Look for error messages in the console
 
 ## License
 
