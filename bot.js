@@ -12,6 +12,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.MessageContent,
   ],
   partials: [
     Partials.Message,
@@ -288,6 +289,13 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
     
     console.log(`📝 New forum post "${thread.name}" created by ${owner.user.tag}`);
     
+    // Send auto-reply if configured
+    if (configData.autoReplyMessage) {
+      const replyMessage = configData.autoReplyMessage.replace('{user}', `<@${ownerId}>`);
+      await thread.send(replyMessage);
+      console.log(`   Auto-reply sent to thread`);
+    }
+    
     // Add XP for creating a post
     const xpGained = configData.xpPerPost;
     const result = addXP(ownerId, xpGained);
@@ -521,3 +529,41 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);
+
+// Listen for messages to detect trigger role mentions
+client.on(Events.MessageCreate, async (message) => {
+  // Ignore bot messages
+  if (message.author.bot) return;
+  
+  // Check if role ping triggers are configured
+  if (!configData.rolePingTriggers || !Array.isArray(configData.rolePingTriggers)) return;
+  
+  // Check each trigger configuration
+  for (const trigger of configData.rolePingTriggers) {
+    // Skip if trigger role wasn't mentioned
+    if (!message.mentions.roles.has(trigger.triggerRoleId)) continue;
+    
+    console.log(`🔔 ${trigger.name} trigger role mentioned by ${message.author.tag} in #${message.channel.name}`);
+    
+    // Build list of roles to ping
+    const rolesToPing = trigger.pingRoles
+      .filter(roleId => roleId && !roleId.startsWith('LFKIN_ROLE_') && !roleId.startsWith('YOUR_'))
+      .map(roleId => `<@&${roleId}>`);
+    
+    if (rolesToPing.length === 0) {
+      console.log(`   No roles configured to ping for ${trigger.name}`);
+      continue;
+    }
+    
+    // Build the response with spoilered role mentions
+    const messageText = trigger.message || 'Notifying roles:\n\n||';
+    const rolesWithClosingSpoiler = `${rolesToPing.join(' ')} ||`;
+    
+    try {
+      await message.channel.send(`${messageText}${rolesWithClosingSpoiler}`);
+      console.log(`   Sent spoilered ping for ${rolesToPing.length} roles (${trigger.name})`);
+    } catch (error) {
+      console.error(`Error sending ${trigger.name} role ping message:`, error);
+    }
+  }
+});

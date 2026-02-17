@@ -4,6 +4,31 @@
   "xpPerPost": 1,
   "closeTime": 168,
   "lockTime": 336,
+  "autoReplyMessage": "Thanks for your post, {user}! Our team will review it soon.",
+  "rolePingTriggers": [
+    {
+      "name": "LFRP",
+      "triggerRoleId": "TRIGGER_ROLE_ID",
+      "message": "Your message here with opening spoiler ||\n\n||",
+      "pingRoles": [
+        "ROLE_ID_1",
+        "ROLE_ID_2",
+        "ROLE_ID_3",
+        "ROLE_ID_4",
+        "ROLE_ID_5"
+      ]
+    },
+    {
+      "name": "LFKin",
+      "triggerRoleId": "TRIGGER_ROLE_ID_2",
+      "message": "Your second trigger message here\n\n||",
+      "pingRoles": [
+        "ROLE_ID_1",
+        "ROLE_ID_2",
+        "ROLE_ID_3"
+      ]
+    }
+  ],
   "levelThresholds": {
     "1": 0,
     "2": 0,
