@@ -1,17 +1,17 @@
 {
   "forumChannelId": "YOUR_FORUM_CHANNEL_ID",
-  "xpPerPin": ?,
-  "xpPerPost": ?,
+  "xpPerPin": 0,
+  "xpPerPost": 0,
   "levelThresholds": {
-    "1": ?,
-    "2": ?,
-    "3": ?,
-    "4": ?,
-    "5": ?,
-    "6": ?,
-    "7": ?,
-    "8": ?,
-    "9": ???
+    "1": 0,
+    "2": 0,
+    "3": 0,
+    "4": 0,
+    "5": 0,
+    "6": 0,
+    "7": 0,
+    "8": 0,
+    "9": 0
   },
   "levelRoles": {
     "0": "ROLE_ID_FOR_LEVEL_0",
