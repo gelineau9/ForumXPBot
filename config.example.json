@@ -1,5 +1,6 @@
 {
   "forumChannelId": "YOUR_FORUM_CHANNEL_ID",
+  "logChannelId": "YOUR_LOG_CHANNEL_ID",
   "xpPerPin": 2,
   "xpPerPost": 1,
   "closeTime": 168,

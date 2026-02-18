@@ -6,6 +6,19 @@ import configData from './config.json' with { type: 'json' };
 
 dotenv.config(); // Load .env file
 
+// Helper function to log to Discord channel
+async function logToChannel(message) {
+  if (!configData.logChannelId) return;
+  try {
+    const channel = await client.channels.fetch(configData.logChannelId);
+    if (channel) {
+      await channel.send(message);
+    }
+  } catch (error) {
+    console.error('Failed to log to Discord channel:', error.message);
+  }
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -38,6 +51,9 @@ client.once(Events.ClientReady, async (c) => {
     checkThreadMaintenance(c);
     setInterval(() => checkThreadMaintenance(c), 5 * 60 * 1000);
   }
+  
+  // Log startup to Discord channel
+  logToChannel(`✅ **Bot started!** Monitoring forum channel and ready for action.`);
 });
 
 // Check and close/lock old threads
@@ -61,17 +77,20 @@ async function checkThreadMaintenance(client) {
       if (configData.lockTime && threadAgeHours >= configData.lockTime && !thread.locked) {
         await thread.setLocked(true);
         console.log(`🔒 Locked thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
+        logToChannel(`🔒 **Locked thread** "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
         
         // Also archive if not already
         if (!thread.archived) {
           await thread.setArchived(true);
           console.log(`📁 Closed thread "${thread.name}"`);
+          logToChannel(`📁 **Closed thread** "${thread.name}"`);
         }
       }
       // Check if thread should be closed (archived)
       else if (configData.closeTime && threadAgeHours >= configData.closeTime && !thread.archived) {
         await thread.setArchived(true);
         console.log(`📁 Closed thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
+        logToChannel(`📁 **Closed thread** "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
       }
     }
   } catch (error) {
@@ -127,10 +146,12 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   const nextThreshold = getNextLevelThreshold(result.currentLevel);
   const progressText = nextThreshold ? ` (${result.newXP}/${nextThreshold} XP to next level)` : ' (Max level)';
   console.log(`   User ${user.tag} now has ${result.newXP} XP${progressText} - Level ${result.currentLevel}`);
+  logToChannel(`📌 **${user.tag}** pinned a post in "${message.channel.name}" → +${xpGained} XP (Total: ${result.newXP} XP, Level ${result.currentLevel})`);
 
   // Check if user leveled up
   if (result.leveledUp) {
     console.log(`🎉 ${user.tag} leveled up to Level ${result.currentLevel}!`);
+    logToChannel(`🎉 **${user.tag}** leveled up to **Level ${result.currentLevel}**!`);
     
     // Assign role for new level
     const newRoleId = configData.levelRoles[result.currentLevel];
@@ -212,6 +233,7 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
     const nextThreshold = getNextLevelThreshold(result.currentLevel);
     const progressText = nextThreshold ? ` (${result.newXP}/${nextThreshold} XP to next level)` : ' (Max level)';
     console.log(`   User ${user.tag} now has ${result.newXP} XP${progressText} - Level ${result.currentLevel}`);
+    logToChannel(`📌 **${user.tag}** removed pin from "${message.channel.name}" → -${xpLost} XP (Total: ${result.newXP} XP, Level ${result.currentLevel})`);
   } else {
     console.log(`   User ${user.tag} not found in database (no XP to remove)`);
   }
@@ -249,6 +271,7 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
       const progressText = nextThreshold ? ` (${xpDisplay}/${nextThreshold} XP to next level)` : ' (Max level reached)';
       
       console.log(`   Set ${newMember.user.tag} to Level ${level} with ${xpDisplay} XP.${progressText}`);
+      logToChannel(`🔄 **${newMember.user.tag}** manually assigned role "${role.name}" → Set to Level ${level} with ${xpDisplay} XP`);
       
       // Remove all lower-level roles
       for (let lowerLevel = 0; lowerLevel < level; lowerLevel++) {
@@ -288,12 +311,19 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
     const owner = await thread.guild.members.fetch(ownerId);
     
     console.log(`📝 New forum post "${thread.name}" created by ${owner.user.tag}`);
+    logToChannel(`📝 **${owner.user.tag}** created new forum post: "${thread.name}"`);
     
-    // Send auto-reply if configured
+    // Send auto-reply if configured (with delay to ensure initial message is posted)
     if (configData.autoReplyMessage) {
-      const replyMessage = configData.autoReplyMessage.replace('{user}', `<@${ownerId}>`);
-      await thread.send(replyMessage);
-      console.log(`   Auto-reply sent to thread`);
+      setTimeout(async () => {
+        try {
+          const replyMessage = configData.autoReplyMessage.replace('{user}', `<@${ownerId}>`);
+          await thread.send(replyMessage);
+          console.log(`   Auto-reply sent to thread "${thread.name}"`);
+        } catch (error) {
+          console.error(`   Failed to send auto-reply to "${thread.name}":`, error.message);
+        }
+      }, 2000); // 2 second delay
     }
     
     // Add XP for creating a post
@@ -307,6 +337,7 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
     // Check if user leveled up
     if (result.leveledUp) {
       console.log(`🎉 ${owner.user.tag} leveled up to Level ${result.currentLevel}!`);
+      logToChannel(`🎉 **${owner.user.tag}** leveled up to **Level ${result.currentLevel}**!`);
       
       // Assign role for new level
       const newRoleId = configData.levelRoles[result.currentLevel];
@@ -338,24 +369,6 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
 // Register slash commands
 async function registerCommands(client) {
   const commands = [
-    {
-      name: 'add-xp',
-      description: 'Add XP to a user (Admin only)',
-      options: [
-        {
-          name: 'user',
-          description: 'The user to add XP to',
-          type: 6, // USER type
-          required: true,
-        },
-        {
-          name: 'amount',
-          description: 'Amount of XP to add',
-          type: 4, // INTEGER type
-          required: true,
-        },
-      ],
-    },
     {
       name: 'check-xp',
       description: 'Check a user\'s XP and level (Admin only)',
@@ -399,49 +412,6 @@ async function registerCommands(client) {
 // Handle slash commands
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
-
-  if (interaction.commandName === 'add-xp') {
-    // Check if user has admin permissions
-    if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
-      await interaction.reply({ content: '❌ You need Administrator permissions to use this command.', ephemeral: true });
-      return;
-    }
-
-    const targetUser = interaction.options.getUser('user');
-    const amount = interaction.options.getInteger('amount');
-
-    if (amount <= 0) {
-      await interaction.reply({ content: '❌ Amount must be positive.', ephemeral: true });
-      return;
-    }
-
-    const result = addXP(targetUser.id, amount);
-
-    let response = `✅ Added ${amount} XP to ${targetUser.tag}. They now have ${result.newXP} XP (Level ${result.currentLevel}).`;
-
-    // Check if user leveled up
-    if (result.leveledUp) {
-      response += `\n🎉 They leveled up to Level ${result.currentLevel}!`;
-      
-      // Assign role for new level
-      const roleId = configData.levelRoles[result.currentLevel];
-      if (roleId) {
-        try {
-          const member = await interaction.guild.members.fetch(targetUser.id);
-          const role = await interaction.guild.roles.fetch(roleId);
-          
-          if (role) {
-            await member.roles.add(role);
-            response += ` Role "${role.name}" assigned.`;
-          }
-        } catch (error) {
-          console.error('Error assigning role:', error);
-        }
-      }
-    }
-
-    await interaction.reply({ content: response, ephemeral: true });
-  }
 
   if (interaction.commandName === 'check-xp') {
     // Check if user has admin permissions
@@ -544,6 +514,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (!message.mentions.roles.has(trigger.triggerRoleId)) continue;
     
     console.log(`🔔 ${trigger.name} trigger role mentioned by ${message.author.tag} in #${message.channel.name}`);
+    logToChannel(`🔔 **${message.author.tag}** triggered **${trigger.name}** role ping in #${message.channel.name}`);
     
     // Build list of roles to ping
     const rolesToPing = trigger.pingRoles
