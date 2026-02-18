@@ -1,31 +1,35 @@
 # ForumXPBot - Discord Forum XP & Leveling Bot
 
-A lightweight Discord bot that tracks XP and assigns level roles based on user activity in forum channels. Users earn XP by creating forum posts and receiving pin reactions on their posts.
+A Discord bot that tracks XP and assigns level roles based on forum activity. Users earn XP by creating forum posts and receiving pin reactions.
 
 ## Features
 
-- **Forum-focused XP system** - Tracks activity only in a designated forum channel (config.json)
-- **Pin reaction rewards** - Users earn XP when others pin (📌) their forum starter posts
-- **XP removal** - XP is removed if a pin reaction is removed
+- **Forum-focused XP system** - Tracks activity in a designated forum channel
+- **Pin reaction rewards** - Users earn XP when others pin their forum posts
 - **Post creation rewards** - Users earn XP for creating new forum posts
+- **XP removal** - XP is removed if a pin reaction is removed (no de-leveling)
 - **Automatic role management** - Assigns level roles on level-up, removes old level roles
-- **Manual role sync** - Assigning a level role manually updates the user's XP and removes lower roles
-- **Admin commands** - Manage user XP and check progress
-- **SQLite database** - Lightweigh storage with no external dependencies
+- **Manual role sync** - Assigning a level role manually syncs the user's XP
+- **Auto-reply on new posts** - Configurable welcome message when users create forum posts
+- **Role ping triggers** - Responds with spoilered role pings when specific roles are mentioned
+- **Auto-close & lock threads** - Automatically archives and locks old forum posts
+- **Discord channel logging** - Logs all bot activity to a designated channel
+- **Admin commands** - Check and set user XP
+- **Bulk import tools** - Scripts for importing users from CSV
 
 ## Installation
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or higher
+- [Node.js](https://nodejs.org/) v20 or higher
 - A Discord bot token ([Discord Developer Portal](https://discord.com/developers/applications))
 
 ### Setup
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/gelineau9/RoLBot.git
-   cd RoLBot
+   git clone https://github.com/gelineau9/ForumXPBot.git
+   cd ForumXPBot
    ```
 
 2. **Install dependencies**
@@ -60,8 +64,20 @@ Edit `config.json` with your server's IDs:
 ```json
 {
   "forumChannelId": "YOUR_FORUM_CHANNEL_ID",
+  "logChannelId": "YOUR_LOG_CHANNEL_ID",
   "xpPerPin": 2,
   "xpPerPost": 1,
+  "closeTime": 10,
+  "lockTime": 24,
+  "autoReplyMessage": "Thanks for your post, {user}!",
+  "rolePingTriggers": [
+    {
+      "name": "LFRP",
+      "triggerRoleId": "TRIGGER_ROLE_ID",
+      "message": "A member is looking for RP!\n\n||",
+      "pingRoles": ["ROLE_ID_1", "ROLE_ID_2"]
+    }
+  ],
   "levelThresholds": {
     "1": 5,
     "2": 15,
@@ -75,31 +91,59 @@ Edit `config.json` with your server's IDs:
 }
 ```
 
-### Getting Discord IDs
-
-1. Enable **Developer Mode** in Discord (Settings → Advanced → Developer Mode)
-2. Right-click on channels/roles → **Copy ID**
-
 ### Configuration Options
 
 | Option | Description |
 |--------|-------------|
 | `forumChannelId` | The forum channel to monitor for XP activity |
+| `logChannelId` | Channel for bot activity logs (set to `null` to disable) |
 | `xpPerPin` | XP awarded when a user's post receives a pin reaction |
 | `xpPerPost` | XP awarded when a user creates a new forum post |
+| `closeTime` | Hours until forum posts are archived/closed (set to `null` to disable) |
+| `lockTime` | Hours until forum posts are locked (set to `null` to disable) |
+| `autoReplyMessage` | Message sent on new forum posts. Use `{user}` to mention the poster (set to `null` to disable) |
+| `rolePingTriggers` | Array of role ping configurations (see below) |
 | `levelThresholds` | Cumulative XP required to reach each level |
 | `levelRoles` | Discord role IDs to assign for each level |
+
+### Role Ping Triggers
+
+When a user mentions a trigger role, the bot responds with a message and spoilered role pings:
+
+```json
+"rolePingTriggers": [
+  {
+    "name": "LFRP",
+    "triggerRoleId": "TRIGGER_ROLE_ID",
+    "message": "Your message here\n\n||",
+    "pingRoles": ["ROLE_1", "ROLE_2", "ROLE_3"]
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `name` | Identifier for logging |
+| `triggerRoleId` | Role ID that triggers this response when mentioned |
+| `message` | Message to send (end with `\n\n\|\|` to start the spoiler) |
+| `pingRoles` | Array of role IDs to ping inside the spoiler |
+
+### Getting Discord IDs
+
+1. Enable **Developer Mode** in Discord (Settings → Advanced → Developer Mode)
+2. Right-click on channels/roles → **Copy ID**
 
 ## Discord Bot Setup
 
 ### Required Bot Permissions
 
-When creating your OAuth2 invite URL, select these permissions:
 - Read Messages/View Channels
 - Read Message History
+- Send Messages
+- Send Messages in Threads
 - Add Reactions
 - Manage Roles
-- Send Messages
+- Manage Threads
 - Use Application Commands
 
 ### Required Intents
@@ -110,31 +154,23 @@ Enable these in the Discord Developer Portal (Bot → Privileged Gateway Intents
 
 ### Role Hierarchy
 
-**Important:** The bot's role must be positioned **above** all level roles in your server's role settings. Discord prevents bots from managing roles higher than their own.
+**Important:** The bot's role must be positioned **above** all level roles in your server's role settings.
 
 ## Admin Commands
 
-All commands require **Administrator** permission and responses are ephemeral (only visible to the admin).
+All commands require **Administrator** permission. Responses are only visible to the admin.
 
 | Command | Description |
 |---------|-------------|
-| `/add-xp @user <amount>` | Add XP to a user (triggers level-ups if thresholds are crossed) |
-| `/set-xp @user <amount>` | Set a user's XP to a specific value and update their role accordingly |
+| `/set-xp @user <amount>` | Set a user's XP and update their role |
 | `/check-xp @user` | Check a user's current XP and level |
 
-## File Structure
+## Testing
 
-```
-ForumXPBot/
-├── bot.js              # Main bot logic and event handlers
-├── database.js         # SQLite database operations
-├── config.json         # Bot configuration (not tracked in git)
-├── config.example.json # Example configuration template
-├── .env                # Bot token (not tracked in git)
-├── .env.example        # Example environment template
-├── package.json        # Node.js dependencies
-├── .gitignore          # Git ignore rules
-└── xp.db               # SQLite database (created on first run)
+Run the test suite to verify database and XP calculations:
+
+```bash
+node test.js
 ```
 
 ## License
