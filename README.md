@@ -9,13 +9,13 @@ A Discord bot that tracks XP and assigns level roles based on forum activity. Us
 - **Post creation rewards** - Users earn XP for creating new forum posts
 - **XP removal** - XP is removed if a pin reaction is removed (no de-leveling)
 - **Automatic role management** - Assigns level roles on level-up, removes old level roles
-- **Manual role sync** - Assigning a level role manually syncs the user's XP
 - **Auto-reply on new posts** - Configurable welcome message when users create forum posts
 - **Role ping triggers** - Responds with spoilered role pings when specific roles are mentioned
-- **Auto-close & lock threads** - Automatically archives and locks old forum posts
+- **Auto-close & lock threads** - Automatically archives and locks old forum posts (with exclude list)
 - **Discord channel logging** - Logs all bot activity to a designated channel
+- **Hourly database export** - Automatically exports user data to CSV every hour
 - **Admin commands** - Check and set user XP
-- **Bulk import tools** - Scripts for importing users from CSV
+- **Bulk import tools** - Scripts for importing users from CSV (supports username or user ID format)
 
 ## Installation
 
@@ -69,6 +69,7 @@ Edit `config.json` with your server's IDs:
   "xpPerPost": 1,
   "closeTime": 10,
   "lockTime": 24,
+  "excludeThreadIds": ["THREAD_ID_1", "THREAD_ID_2"],
   "autoReplyMessage": "Thanks for your post, {user}!",
   "rolePingTriggers": [
     {
@@ -101,6 +102,7 @@ Edit `config.json` with your server's IDs:
 | `xpPerPost` | XP awarded when a user creates a new forum post |
 | `closeTime` | Hours until forum posts are archived/closed (set to `null` to disable) |
 | `lockTime` | Hours until forum posts are locked (set to `null` to disable) |
+| `excludeThreadIds` | Array of thread IDs to exclude from auto-close/lock (e.g., pinned guidelines) |
 | `autoReplyMessage` | Message sent on new forum posts. Use `{user}` to mention the poster (set to `null` to disable) |
 | `rolePingTriggers` | Array of role ping configurations (see below) |
 | `levelThresholds` | Cumulative XP required to reach each level |
@@ -171,6 +173,43 @@ Run the test suite to verify database and XP calculations:
 
 ```bash
 node test.js
+```
+
+## Database Export & Import
+
+### Automatic Export
+
+The bot automatically exports user data to `db-export.csv` every hour (and on startup). The format is:
+
+```csv
+userId,xp
+123456789012345678,150
+234567890123456789,85
+```
+
+### Import Script
+
+Import users from a CSV file:
+
+```bash
+node import-users.js [filename.csv]
+```
+
+- Default filename is `import.csv` if not specified
+- **Important:** Stop the bot before running import, then restart it after
+
+The script auto-detects two CSV formats:
+
+**User ID format** (from `db-export.csv`):
+```csv
+userId,xp
+123456789012345678,150
+```
+
+**Username format** (from spreadsheets):
+```csv
+username,xp
+SomeUser,150
 ```
 
 ## License
