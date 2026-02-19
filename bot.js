@@ -19,6 +19,9 @@ async function logToChannel(message) {
   }
 }
 
+// Track role changes made by the bot itself (to ignore in GuildMemberUpdate)
+const botAssignedRoles = new Set();
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -70,6 +73,11 @@ async function checkThreadMaintenance(client) {
     const now = Date.now();
     
     for (const [threadId, thread] of threads.threads) {
+      // Skip excluded threads (e.g., pinned guideline posts)
+      if (configData.excludeThreadIds && configData.excludeThreadIds.includes(threadId)) {
+        continue;
+      }
+      
       const threadAge = now - thread.createdTimestamp;
       const threadAgeHours = threadAge / (1000 * 60 * 60);
       
@@ -174,6 +182,8 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         // Add new level role
         const newRole = await guild.roles.fetch(newRoleId);
         if (newRole) {
+          // Track this so GuildMemberUpdate ignores it
+          botAssignedRoles.add(`${user.id}-${newRoleId}`);
           await member.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${user.tag}`);
         }
@@ -261,6 +271,13 @@ client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
   for (const [roleId, role] of addedRoles) {
     const level = roleToLevel[roleId];
     if (level !== undefined) {
+      // Check if this was assigned by the bot itself - if so, ignore
+      const trackingKey = `${newMember.id}-${roleId}`;
+      if (botAssignedRoles.has(trackingKey)) {
+        botAssignedRoles.delete(trackingKey);
+        return; // Skip - this was a bot-assigned role, not manual
+      }
+      
       console.log(`🔄 Role "${role.name}" (Level ${level}) manually assigned to ${newMember.user.tag}`);
       
       // Set user to this level with threshold XP
@@ -356,6 +373,8 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
         // Add new level role
         const newRole = await thread.guild.roles.fetch(newRoleId);
         if (newRole) {
+          // Track this so GuildMemberUpdate ignores it
+          botAssignedRoles.add(`${ownerId}-${newRoleId}`);
           await owner.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${owner.user.tag}`);
         }
