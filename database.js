@@ -213,6 +213,25 @@ function saveDatabase() {
   fs.writeFileSync(DB_PATH, buffer);
 }
 
+// Export database to CSV file
+export function exportDatabaseToCSV() {
+  if (!db) return null;
+  
+  const result = db.exec('SELECT user_id, current_xp FROM users ORDER BY current_xp DESC');
+  
+  if (result.length === 0 || result[0].values.length === 0) {
+    return { count: 0, path: null };
+  }
+  
+  const rows = result[0].values;
+  const csvContent = 'userId,xp\n' + rows.map(row => `${row[0]},${row[1]}`).join('\n');
+  
+  const exportPath = join(__dirname, 'db-export.csv');
+  fs.writeFileSync(exportPath, csvContent);
+  
+  return { count: rows.length, path: exportPath };
+}
+
 // Graceful shutdown
 process.on('SIGINT', () => {
   if (db) {

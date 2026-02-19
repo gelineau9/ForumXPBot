@@ -5,7 +5,7 @@
   "xpPerPost": 1,
   "closeTime": 168,
   "lockTime": 336,
-  "excludeThreadIds": ["1287053060392353915"],
+  "excludeThreadIds": ["YOUR_THREAD_ID"],
   "autoReplyMessage": "Thanks for your post, {user}! Our team will review it soon.",
   "rolePingTriggers": [
     {

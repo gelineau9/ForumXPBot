@@ -1,7 +1,7 @@
 import pkg from 'discord.js';
 const { Client, GatewayIntentBits, Events, PermissionFlagsBits, Partials } = pkg;
 import dotenv from 'dotenv';
-import { initDatabase, addXP, removeXP, getUserLevel, getNextLevelThreshold, setUserLevel, setUserXP } from './database.js';
+import { initDatabase, addXP, removeXP, getUserLevel, getNextLevelThreshold, setUserLevel, setUserXP, exportDatabaseToCSV } from './database.js';
 import configData from './config.json' with { type: 'json' };
 
 dotenv.config(); // Load .env file
@@ -18,9 +18,6 @@ async function logToChannel(message) {
     console.error('Failed to log to Discord channel:', error.message);
   }
 }
-
-// Track role changes made by the bot itself (to ignore in GuildMemberUpdate)
-const botAssignedRoles = new Set();
 
 const client = new Client({
   intents: [
@@ -57,6 +54,16 @@ client.once(Events.ClientReady, async (c) => {
   
   // Log startup to Discord channel
   logToChannel(`✅ **Bot started!** Monitoring forum channel and ready for action.`);
+  
+  // Start periodic database export (every hour)
+  function runExport() {
+    const result = exportDatabaseToCSV();
+    if (result && result.count > 0) {
+      console.log(`💾 Exported ${result.count} users to db-export.csv`);
+    }
+  }
+  runExport(); // Run immediately on startup
+  setInterval(runExport, 60 * 60 * 1000); // Then every hour
 });
 
 // Check and close/lock old threads
@@ -182,8 +189,6 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         // Add new level role
         const newRole = await guild.roles.fetch(newRoleId);
         if (newRole) {
-          // Track this so GuildMemberUpdate ignores it
-          botAssignedRoles.add(`${user.id}-${newRoleId}`);
           await member.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${user.tag}`);
         }
@@ -249,69 +254,6 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
   }
 });
 
-// Listen for role updates (manual role assignments)
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-  // Check if roles changed
-  if (oldMember.roles.cache.size === newMember.roles.cache.size) {
-    const oldRoles = oldMember.roles.cache.map(r => r.id).sort();
-    const newRoles = newMember.roles.cache.map(r => r.id).sort();
-    if (oldRoles.every((id, i) => id === newRoles[i])) return; // No role change
-  }
-
-  // Find which level roles were added
-  const addedRoles = newMember.roles.cache.filter(role => !oldMember.roles.cache.has(role.id));
-  
-  // Create reverse lookup: roleId -> level
-  const roleToLevel = {};
-  for (const [level, roleId] of Object.entries(configData.levelRoles)) {
-    roleToLevel[roleId] = parseInt(level);
-  }
-
-  // Check if any added role is a level role
-  for (const [roleId, role] of addedRoles) {
-    const level = roleToLevel[roleId];
-    if (level !== undefined) {
-      // Check if this was assigned by the bot itself - if so, ignore
-      const trackingKey = `${newMember.id}-${roleId}`;
-      if (botAssignedRoles.has(trackingKey)) {
-        botAssignedRoles.delete(trackingKey);
-        return; // Skip - this was a bot-assigned role, not manual
-      }
-      
-      console.log(`🔄 Role "${role.name}" (Level ${level}) manually assigned to ${newMember.user.tag}`);
-      
-      // Set user to this level with threshold XP
-      const result = setUserLevel(newMember.user.id, level);
-      
-      const nextThreshold = getNextLevelThreshold(level);
-      const xpDisplay = result ? result.xp : 0;
-      const progressText = nextThreshold ? ` (${xpDisplay}/${nextThreshold} XP to next level)` : ' (Max level reached)';
-      
-      console.log(`   Set ${newMember.user.tag} to Level ${level} with ${xpDisplay} XP.${progressText}`);
-      logToChannel(`🔄 **${newMember.user.tag}** manually assigned role "${role.name}" → Set to Level ${level} with ${xpDisplay} XP`);
-      
-      // Remove all lower-level roles
-      for (let lowerLevel = 0; lowerLevel < level; lowerLevel++) {
-        const lowerRoleId = configData.levelRoles[lowerLevel];
-        if (lowerRoleId && newMember.roles.cache.has(lowerRoleId)) {
-          try {
-            const lowerRole = await newMember.guild.roles.fetch(lowerRoleId);
-            if (lowerRole) {
-              await newMember.roles.remove(lowerRole);
-              console.log(`   Removed lower role "${lowerRole.name}" (Level ${lowerLevel}) from ${newMember.user.tag}`);
-            }
-          } catch (error) {
-            console.error(`   Error removing role Level ${lowerLevel}:`, error.message);
-          }
-        }
-      }
-      
-      // No need to check other roles - user is now at highest assigned level
-      break;
-    }
-  }
-});
-
 // Listen for new forum posts (thread creation)
 client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
   // Only process newly created threads
@@ -373,8 +315,6 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
         // Add new level role
         const newRole = await thread.guild.roles.fetch(newRoleId);
         if (newRole) {
-          // Track this so GuildMemberUpdate ignores it
-          botAssignedRoles.add(`${ownerId}-${newRoleId}`);
           await owner.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${owner.user.tag}`);
         }
@@ -502,8 +442,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (newRoleId) {
         const newRole = await interaction.guild.roles.fetch(newRoleId);
         if (newRole) {
-          // Track this so GuildMemberUpdate ignores it
-          botAssignedRoles.add(`${targetUser.id}-${newRoleId}`);
           await member.roles.add(newRole);
         }
       }
