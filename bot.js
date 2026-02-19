@@ -60,6 +60,7 @@ client.once(Events.ClientReady, async (c) => {
     const result = exportDatabaseToCSV();
     if (result && result.count > 0) {
       console.log(`💾 Exported ${result.count} users to db-export.csv`);
+      logToChannel(`💾 **Database exported** - ${result.count} users saved to db-export.csv`);
     }
   }
   runExport(); // Run immediately on startup
@@ -183,6 +184,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
           if (oldRole && member.roles.cache.has(oldRoleId)) {
             await member.roles.remove(oldRole);
             console.log(`   Removed role "${oldRole.name}" from ${user.tag}`);
+            logToChannel(`🔄 Removed role **${oldRole.name}** from **${user.tag}**`);
           }
         }
         
@@ -191,6 +193,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
         if (newRole) {
           await member.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${user.tag}`);
+          logToChannel(`🔄 Assigned role **${newRole.name}** to **${user.tag}**`);
         }
       } catch (error) {
         console.error(`Error assigning role:`, error);
@@ -309,6 +312,7 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
           if (oldRole && owner.roles.cache.has(oldRoleId)) {
             await owner.roles.remove(oldRole);
             console.log(`   Removed role "${oldRole.name}" from ${owner.user.tag}`);
+            logToChannel(`🔄 Removed role **${oldRole.name}** from **${owner.user.tag}**`);
           }
         }
         
@@ -317,6 +321,7 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
         if (newRole) {
           await owner.roles.add(newRole);
           console.log(`   Assigned role "${newRole.name}" to ${owner.user.tag}`);
+          logToChannel(`🔄 Assigned role **${newRole.name}** to **${owner.user.tag}**`);
         }
       }
     }
@@ -453,6 +458,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       content: `✅ Set ${targetUser.tag}'s XP to ${result.newXP}. They are now Level ${result.newLevel}${progressText}.`, 
       ephemeral: true 
     });
+    
+    logToChannel(`⚙️ **${interaction.user.tag}** used /set-xp on **${targetUser.tag}** → XP: ${result.newXP}, Level: ${result.newLevel}`);
   }
 });
 
