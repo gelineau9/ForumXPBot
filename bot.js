@@ -502,6 +502,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       if (newRoleId) {
         const newRole = await interaction.guild.roles.fetch(newRoleId);
         if (newRole) {
+          // Track this so GuildMemberUpdate ignores it
+          botAssignedRoles.add(`${targetUser.id}-${newRoleId}`);
           await member.roles.add(newRole);
         }
       }
