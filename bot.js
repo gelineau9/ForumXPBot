@@ -90,11 +90,16 @@ async function checkThreadMaintenance(client) {
 
       // Check if thread should be locked (lockTime takes precedence)
       if (configData.lockTime && threadAgeHours >= configData.lockTime && !thread.locked) {
+        // Discord requires a thread to be unarchived before it can be locked.
+        // If it's already archived, temporarily unarchive, lock, then re-archive.
+        if (thread.archived) {
+          await thread.setArchived(false);
+        }
         await thread.setLocked(true);
         console.log(`🔒 Locked thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
         logToChannel(`🔒 **Locked thread** "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
 
-        // Also archive if not already
+        // Re-archive (or archive for the first time) after locking
         if (!thread.archived) {
           await thread.setArchived(true);
           console.log(`📁 Closed thread "${thread.name}"`);
