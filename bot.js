@@ -34,23 +34,9 @@ const client = new Client({
   ],
 });
 
-// Initialize database on startup
-client.once(Events.ClientReady, async (c) => {
-  console.log(`✅ Logged in as ${c.user.tag}`);
-  console.log(`📊 Monitoring forum channel: ${configData.forumChannelId}`);
-  
-  await initDatabase();
-  
 // ============================================================
 // APRIL FOOLS EVENT — temporary, remove after the event
-// XP is in-memory only (resets on bot restart). Roles are
-// stacking (additive): each threshold grants its own role and
-// players keep all previously earned roles.
-// To end the event: run /aprilfools-end (admin only) to strip
-// all event roles, then set "enabled": false in config.json
-// and restart the bot.
 // ============================================================
-
 // In-memory XP store: Map<userId, number>
 const aprilFoolsXP = new Map();
 
@@ -67,9 +53,15 @@ function aprilFoolsXPForMessage(content) {
 function aprilFoolsEarnedRoles(totalXP) {
   return configData.aprilFools.roles.filter(r => totalXP >= r.xp);
 }
-
 // END APRIL FOOLS DECLARATIONS
 // ============================================================
+
+// Initialize database on startup
+client.once(Events.ClientReady, async (c) => {
+  console.log(`✅ Logged in as ${c.user.tag}`);
+  console.log(`📊 Monitoring forum channel: ${configData.forumChannelId}`);
+
+  await initDatabase();
 
 // Register slash commands
   await registerCommands(c);
