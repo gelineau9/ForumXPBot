@@ -76,25 +76,24 @@ async function checkThreadMaintenance(client) {
     const forumChannel = await guild.channels.fetch(configData.forumChannelId);
     if (!forumChannel) return;
     
-    // Fetch all active threads in the forum
-    const threads = await forumChannel.threads.fetchActive();
     const now = Date.now();
-    
-    for (const [threadId, thread] of threads.threads) {
+
+    // Helper to process a single thread
+    async function processThread(thread) {
+      const threadId = thread.id;
+
       // Skip excluded threads (e.g., pinned guideline posts)
-      if (configData.excludeThreadIds && configData.excludeThreadIds.includes(threadId)) {
-        continue;
-      }
-      
+      if (configData.excludeThreadIds && configData.excludeThreadIds.includes(threadId)) return;
+
       const threadAge = now - thread.createdTimestamp;
       const threadAgeHours = threadAge / (1000 * 60 * 60);
-      
+
       // Check if thread should be locked (lockTime takes precedence)
       if (configData.lockTime && threadAgeHours >= configData.lockTime && !thread.locked) {
         await thread.setLocked(true);
         console.log(`🔒 Locked thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
         logToChannel(`🔒 **Locked thread** "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
-        
+
         // Also archive if not already
         if (!thread.archived) {
           await thread.setArchived(true);
@@ -102,11 +101,43 @@ async function checkThreadMaintenance(client) {
           logToChannel(`📁 **Closed thread** "${thread.name}"`);
         }
       }
-      // Check if thread should be closed (archived)
+      // Check if thread should be closed (archived) — only if not already archived
       else if (configData.closeTime && threadAgeHours >= configData.closeTime && !thread.archived) {
         await thread.setArchived(true);
         console.log(`📁 Closed thread "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
         logToChannel(`📁 **Closed thread** "${thread.name}" (age: ${Math.floor(threadAgeHours)}h)`);
+      }
+    }
+
+    // Fetch active threads (not yet archived by Discord)
+    const activeThreads = await forumChannel.threads.fetchActive();
+    for (const [, thread] of activeThreads.threads) {
+      await processThread(thread);
+    }
+
+    // Also fetch recently archived threads so we can still lock them if needed.
+    // Discord auto-archives threads based on inactivity settings, which may happen
+    // before our bot's closeTime/lockTime thresholds are reached. An archived thread
+    // can still be locked.
+    if (configData.lockTime) {
+      let before = undefined;
+      let hasMore = true;
+
+      while (hasMore) {
+        const archivedBatch = await forumChannel.threads.fetchArchived({ before, limit: 100 });
+
+        for (const [, thread] of archivedBatch.threads) {
+          // Only care about threads old enough to need locking that aren't locked yet
+          if (!thread.locked) {
+            await processThread(thread);
+          }
+        }
+
+        hasMore = archivedBatch.hasMore;
+        if (hasMore && archivedBatch.threads.size > 0) {
+          // Use the oldest thread's ID as the cursor for the next page
+          before = archivedBatch.threads.last().id;
+        }
       }
     }
   } catch (error) {
@@ -470,6 +501,10 @@ client.login(process.env.DISCORD_TOKEN);
 client.on(Events.MessageCreate, async (message) => {
   // Ignore bot messages
   if (message.author.bot) return;
+
+  // Ignore the starter/opening message of a forum thread — ThreadCreate already handles those.
+  // Discord sets the starter message ID equal to the thread ID.
+  if (message.channel.isThread() && message.id === message.channel.id) return;
   
   // Check if role ping triggers are configured
   if (!configData.rolePingTriggers || !Array.isArray(configData.rolePingTriggers)) return;
