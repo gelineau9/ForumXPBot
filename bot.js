@@ -423,6 +423,10 @@ async function registerCommands(client) {
     },
     // APRIL FOOLS EVENT — remove after event
     {
+      name: 'aprilfools-start',
+      description: 'Start the April Fools event and give everyone the F2RP role (Admin only)',
+    },
+    {
       name: 'aprilfools-end',
       description: 'End the April Fools event and strip all event roles (Admin only)',
     },
@@ -527,6 +531,53 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 
   // APRIL FOOLS EVENT — remove after event
+  if (interaction.commandName === 'aprilfools-start') {
+    if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({ content: '❌ You need Administrator permissions to use this command.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const startRoleId = configData.aprilFools?.roles?.[0]?.roleId;
+    if (!startRoleId || startRoleId.startsWith('YOUR_')) {
+      await interaction.editReply('❌ F2RP role ID is not configured in config.json.');
+      return;
+    }
+
+    const startRole = await interaction.guild.roles.fetch(startRoleId);
+    if (!startRole) {
+      await interaction.editReply('❌ Could not find the F2RP role. Check the role ID in config.json.');
+      return;
+    }
+
+    let assigned = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    try {
+      const members = await interaction.guild.members.fetch();
+      for (const [, member] of members) {
+        if (member.user.bot) continue;
+        if (member.roles.cache.has(startRoleId)) { skipped++; continue; }
+        try {
+          await member.roles.add(startRole);
+          assigned++;
+        } catch {
+          errors++;
+        }
+      }
+    } catch (error) {
+      console.error('[AprilFools] Error during role assignment:', error);
+      await interaction.editReply('❌ Failed to fetch members. Check bot permissions.');
+      return;
+    }
+
+    console.log(`[AprilFools] Event started by ${interaction.user.tag}. Assigned F2RP to ${assigned} members (${skipped} already had it, ${errors} errors).`);
+    logToChannel(`🎭 **[April Fools]** Event started by **${interaction.user.tag}**. Assigned **${startRole.name}** to **${assigned}** members (${skipped} already had it${errors > 0 ? `, ${errors} errors` : ''}).`);
+    await interaction.editReply(`✅ April Fools event started! Assigned **${startRole.name}** to **${assigned}** members${skipped > 0 ? ` (${skipped} already had it)` : ''}${errors > 0 ? ` — ${errors} errors, check logs` : ''}.`);
+  }
+
   if (interaction.commandName === 'aprilfools-end') {
     if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
       await interaction.reply({ content: '❌ You need Administrator permissions to use this command.', ephemeral: true });
@@ -579,7 +630,6 @@ client.login(process.env.DISCORD_TOKEN);
 client.on(Events.MessageCreate, async (message) => {
   if (!configData.aprilFools?.enabled) return;
   if (message.author.bot) return;
-  if (message.channel.id !== configData.aprilFools.channelId) return;
 
   const xpGained = aprilFoolsXPForMessage(message.content);
   if (xpGained === 0) return;
