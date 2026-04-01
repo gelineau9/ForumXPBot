@@ -41,7 +41,37 @@ client.once(Events.ClientReady, async (c) => {
   
   await initDatabase();
   
-  // Register slash commands
+// ============================================================
+// APRIL FOOLS EVENT — temporary, remove after the event
+// XP is in-memory only (resets on bot restart). Roles are
+// stacking (additive): each threshold grants its own role and
+// players keep all previously earned roles.
+// To end the event: run /aprilfools-end (admin only) to strip
+// all event roles, then set "enabled": false in config.json
+// and restart the bot.
+// ============================================================
+
+// In-memory XP store: Map<userId, number>
+const aprilFoolsXP = new Map();
+
+// Award XP based on message length, capped per message
+function aprilFoolsXPForMessage(content) {
+  const af = configData.aprilFools;
+  const chars = content.trim().length;
+  if (chars === 0) return 0;
+  const xp = Math.max(1, Math.floor(chars / af.xpPerCharStep));
+  return Math.min(xp, af.xpCap);
+}
+
+// Check which roles a user has unlocked based on total XP (stacking/additive)
+function aprilFoolsEarnedRoles(totalXP) {
+  return configData.aprilFools.roles.filter(r => totalXP >= r.xp);
+}
+
+// END APRIL FOOLS DECLARATIONS
+// ============================================================
+
+// Register slash commands
   await registerCommands(c);
   
   // Start periodic thread maintenance check
@@ -399,6 +429,12 @@ async function registerCommands(client) {
         },
       ],
     },
+    // APRIL FOOLS EVENT — remove after event
+    {
+      name: 'aprilfools-end',
+      description: 'End the April Fools event and strip all event roles (Admin only)',
+    },
+    // END APRIL FOOLS
   ];
 
   try {
@@ -497,10 +533,93 @@ client.on(Events.InteractionCreate, async (interaction) => {
     
     logToChannel(`⚙️ **${interaction.user.tag}** used /set-xp on **${targetUser.tag}** → XP: ${result.newXP}, Level: ${result.newLevel}`);
   }
+
+  // APRIL FOOLS EVENT — remove after event
+  if (interaction.commandName === 'aprilfools-end') {
+    if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+      await interaction.reply({ content: '❌ You need Administrator permissions to use this command.', ephemeral: true });
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const eventRoleIds = (configData.aprilFools?.roles ?? []).map(r => r.roleId);
+    if (eventRoleIds.length === 0) {
+      await interaction.editReply('No April Fools roles configured.');
+      return;
+    }
+
+    let stripped = 0;
+    let errors = 0;
+
+    try {
+      const members = await interaction.guild.members.fetch();
+      for (const [, member] of members) {
+        const toRemove = eventRoleIds.filter(id => member.roles.cache.has(id));
+        if (toRemove.length === 0) continue;
+        try {
+          await member.roles.remove(toRemove);
+          stripped++;
+        } catch {
+          errors++;
+        }
+      }
+    } catch (error) {
+      console.error('[AprilFools] Error during role cleanup:', error);
+      await interaction.editReply('❌ Failed to fetch members. Check bot permissions.');
+      return;
+    }
+
+    aprilFoolsXP.clear();
+    console.log(`[AprilFools] Event ended by ${interaction.user.tag}. Stripped roles from ${stripped} members.`);
+    logToChannel(`🎭 **[April Fools]** Event ended by **${interaction.user.tag}**. Stripped event roles from **${stripped}** members (${errors} errors).`);
+    await interaction.editReply(`✅ April Fools event ended. Stripped event roles from **${stripped}** members${errors > 0 ? ` (${errors} errors — check logs)` : ''}.`);
+  }
+// END APRIL FOOLS
 });
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);
+
+// ============================================================
+// APRIL FOOLS EVENT — Listen for messages in the event channel
+// ============================================================
+client.on(Events.MessageCreate, async (message) => {
+  if (!configData.aprilFools?.enabled) return;
+  if (message.author.bot) return;
+  if (message.channel.id !== configData.aprilFools.channelId) return;
+
+  const xpGained = aprilFoolsXPForMessage(message.content);
+  if (xpGained === 0) return;
+
+  const userId = message.author.id;
+  const prevXP = aprilFoolsXP.get(userId) ?? 0;
+  const newXP = prevXP + xpGained;
+  aprilFoolsXP.set(userId, newXP);
+
+  // Determine newly unlocked roles (stacking — user keeps all lower tiers)
+  const prevRoles = aprilFoolsEarnedRoles(prevXP);
+  const newRoles  = aprilFoolsEarnedRoles(newXP);
+  const justUnlocked = newRoles.filter(r => !prevRoles.find(p => p.roleId === r.roleId));
+
+  if (justUnlocked.length > 0) {
+    try {
+      const member = await message.guild.members.fetch(userId);
+      for (const roleEntry of justUnlocked) {
+        const role = await message.guild.roles.fetch(roleEntry.roleId);
+        if (role) {
+          await member.roles.add(role);
+          console.log(`🎉 [AprilFools] ${message.author.tag} unlocked "${roleEntry.name}" (${newXP} XP)`);
+          logToChannel(`🎉 **[April Fools]** **${message.author.tag}** unlocked **${roleEntry.name}** (${newXP} XP total)`);
+        }
+      }
+    } catch (error) {
+      console.error('[AprilFools] Error assigning role:', error);
+    }
+  }
+});
+// END OF APRIL FOOLS EVENT CODE
+// ============================================================
 
 // Listen for messages to detect trigger role mentions
 client.on(Events.MessageCreate, async (message) => {
