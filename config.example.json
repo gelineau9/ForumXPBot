@@ -6,6 +6,7 @@
   "closeTime": 168,
   "lockTime": 336,
   "excludeThreadIds": ["YOUR_THREAD_ID"],
+  "doubleXpTagIds": ["YOUR_FORUM_TAG_ID"],
   "autoReplyMessage": "Thanks for your post, {user}! Our team will review it soon.",
   "rolePingTriggers": [
     {

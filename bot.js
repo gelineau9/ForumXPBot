@@ -19,7 +19,17 @@ async function logToChannel(message) {
   }
 }
 
+// XP multiplier for a forum thread: 2x if the post has one of the configured double-XP tags
+function getXpMultiplier(thread) {
+  if (!Array.isArray(configData.doubleXpTagIds) || configData.doubleXpTagIds.length === 0) return 1;
+  return (thread.appliedTags ?? []).some(tagId => configData.doubleXpTagIds.includes(tagId)) ? 2 : 1;
+}
+
 const client = new Client({
+  // No REST retries: Discord has no idempotency for message creation, so a retry
+  // after a lost response (timeout/5xx) posts the message again — this was the
+  // cause of duplicate @LFRP role pings. Better to drop a send than duplicate it.
+  rest: { retries: 0 },
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
@@ -127,9 +137,20 @@ async function checkThreadMaintenance(client) {
     if (configData.lockTime) {
       let before = undefined;
       let hasMore = true;
+      // Threads archived long before the lock threshold were already handled in
+      // earlier runs — no need to paginate the forum's entire history every cycle.
+      const archiveCutoff = now - (configData.lockTime + 7 * 24) * 60 * 60 * 1000;
 
       while (hasMore) {
-        const archivedBatch = await forumChannel.threads.fetchArchived({ before, limit: 100 });
+        let archivedBatch;
+        try {
+          archivedBatch = await forumChannel.threads.fetchArchived({ before, limit: 100 });
+        } catch (error) {
+          // Discord's archived-threads endpoint intermittently 500s on deep
+          // pagination; skip the rest of this cycle instead of spamming the log.
+          console.error(`Archived thread fetch failed (will retry next cycle): ${error.message}`);
+          break;
+        }
 
         for (const [, thread] of archivedBatch.threads) {
           // Only care about threads old enough to need locking that aren't locked yet
@@ -138,10 +159,12 @@ async function checkThreadMaintenance(client) {
           }
         }
 
-        hasMore = archivedBatch.hasMore;
-        if (hasMore && archivedBatch.threads.size > 0) {
-          // Use the oldest thread's ID as the cursor for the next page
-          before = archivedBatch.threads.last().id;
+        const oldest = archivedBatch.threads.last();
+        hasMore = archivedBatch.hasMore && archivedBatch.threads.size > 0
+          && oldest.archiveTimestamp > archiveCutoff;
+        if (hasMore) {
+          // Pass the thread itself so discord.js paginates by archive timestamp
+          before = oldest;
         }
       }
     }
@@ -191,8 +214,8 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (message.id !== message.channel.id) return;
 
   console.log(`📌 Pin reaction from ${user.tag} on forum post: ${message.channel.name}`);
-  // Add XP to user
-  const xpGained = configData.xpPerPin;
+  // Add XP to user (doubled if the post has a double-XP tag)
+  const xpGained = configData.xpPerPin * getXpMultiplier(message.channel);
   const result = addXP(user.id, xpGained);
 
   const nextThreshold = getNextLevelThreshold(result.currentLevel);
@@ -279,8 +302,8 @@ client.on(Events.MessageReactionRemove, async (reaction, user) => {
 
   console.log(`📌 Pin reaction removed by ${user.tag} on forum post: ${message.channel.name}`);
 
-  // Remove XP from user
-  const xpLost = configData.xpPerPin;
+  // Remove XP from user (mirrors what a pin on this post awards)
+  const xpLost = configData.xpPerPin * getXpMultiplier(message.channel);
   const result = removeXP(user.id, xpLost);
 
   if (result) {
@@ -324,8 +347,8 @@ client.on(Events.ThreadCreate, async (thread, newlyCreated) => {
       }, 2000); // 2 second delay
     }
     
-    // Add XP for creating a post
-    const xpGained = configData.xpPerPost;
+    // Add XP for creating a post (doubled if the post has a double-XP tag)
+    const xpGained = configData.xpPerPost * getXpMultiplier(thread);
     const result = addXP(ownerId, xpGained);
     
     const nextThreshold = getNextLevelThreshold(result.currentLevel);

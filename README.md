@@ -70,6 +70,7 @@ Edit `config.json` with your server's IDs:
   "closeTime": 10,
   "lockTime": 24,
   "excludeThreadIds": ["THREAD_ID_1", "THREAD_ID_2"],
+  "doubleXpTagIds": ["FORUM_TAG_ID"],
   "autoReplyMessage": "Thanks for your post, {user}!",
   "rolePingTriggers": [
     {
@@ -103,6 +104,7 @@ Edit `config.json` with your server's IDs:
 | `closeTime` | Hours until forum posts are archived/closed (set to `null` to disable) |
 | `lockTime` | Hours until forum posts are locked (set to `null` to disable) |
 | `excludeThreadIds` | Array of thread IDs to exclude from auto-close/lock (e.g., pinned guidelines) |
+| `doubleXpTagIds` | Forum tag IDs that grant double XP (post creation and pins) to posts tagged with them (empty array to disable). Tag IDs aren't shown in Discord's UI — fetch the forum channel from the API (`GET /channels/<forumChannelId>`) and read `available_tags` |
 | `autoReplyMessage` | Message sent on new forum posts. Use `{user}` to mention the poster (set to `null` to disable) |
 | `rolePingTriggers` | Array of role ping configurations (see below) |
 | `levelThresholds` | Cumulative XP required to reach each level |
